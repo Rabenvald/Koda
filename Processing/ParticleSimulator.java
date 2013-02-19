@@ -1,13 +1,15 @@
 import processing.core.PVector;
 import java.util.concurrent.*;
+//import java.util.Random;
 import java.lang.Math;
 
 public class ParticleSimulator implements Callable, Runnable
 {
   //ArrayList<Particle>
-  private UTParticleSystem owner;
+  private ParticleSystem owner;
   private int particleSet;
   private Particle[] particles;
+  //public Random randomGen = new Random();
   //private ArrayList<Particle>
   
   public Integer call () throws java.io.IOException 
@@ -22,7 +24,7 @@ public class ParticleSimulator implements Callable, Runnable
     simulate();
   }
   
-  public ParticleSimulator(UTParticleSystem myOwner, int mySubset) //temp
+  public ParticleSimulator(ParticleSystem myOwner, int mySubset) //temp
   {
     owner = myOwner;
     particleSet = mySubset;
@@ -30,59 +32,65 @@ public class ParticleSimulator implements Callable, Runnable
   
   public void simulate()
   {
+    PVector effectorPos;
+    PVector affectorPos;
+    
     particles = owner.particles.toArray(new Particle[owner.particles.size()]);
-    //System.out.println("Size: " + owner.particles.size() + ", " + owner.particleArray.get(particleSet).size());
     for(Particle effectedParticle : owner.particleArray.get(particleSet))//O(n)effiency if all elements are contained within
     {
-       //System.out.println("hi");
+      effectorPos = effectedParticle.GetPosition();
+      effectedParticle.setTimeScale(owner.Owner.deltaTime);
+      effectedParticle.lastCallTime = Koda.getCurrentTime();
+      //System.out.println(effectedParticle.id + ", dT:"+owner.Owner.deltaTime);
       for(Particle affectorParticle : particles) //O(n^2)effiency
       {
-        effectedParticle.setTimeScale(owner.Owner.deltaTime);
-        if (effectedParticle != affectorParticle) //Avoid extranious calculations by ignoring itself
+        if (affectorParticle.Active)
         {
+          affectorPos = affectorParticle.GetPosition();
+          if (effectedParticle != affectorParticle && affectorParticle != null) //Avoid extranious calculations by ignoring itself
+          {
+            PVector testVector = new PVector(affectorParticle.Position.x, affectorParticle.Position.y, 0);
+            float particleDistance = (new PVector(Math.abs(effectorPos.x - affectorPos.x), Math.abs(effectorPos.y - affectorPos.y)).mag());
+            if ( particleDistance < 70)
+            {
+              if ( particleDistance < 20)
+              {
+                  PVector impVector = effectedParticle.RepelVector(affectorParticle);
+                  effectedParticle.Impulse(impVector);
+              }
+                PVector impVector = effectedParticle.RepelVector(affectorParticle);
+                /*if(particleDistance < 1 && effectedParticle.Velocity.mag() < 0.0001)          
+                {
+                  impVector.add(new PVector(randomGen.nextFloat()*2000 - 1000, randomGen.nextFloat()*2000 - 1000, 0));
+                }*/
+                //impVector.add(new PVector(randomGen.nextFloat()*2, randomGen.nextFloat()*2, 0));
+                //impVector.mult(100f);
+                //effectedParticle.Impulse(impVector);
+                effectedParticle.Repel(affectorParticle);
+            }
+            else if ( particleDistance < 300)
+            {
+             effectedParticle.Attract(affectorParticle); 
+            }
+            
+            //effectedParticle.Attract(affectorParticle); 
+          }
           
-          if ((new PVector(Math.abs(effectedParticle.Position.x - affectorParticle.Position.x), Math.abs(effectedParticle.Position.y - affectorParticle.Position.y)).mag()) < 50)
-          {
-            PVector impVector = effectedParticle.RepelVector(affectorParticle);
-            //impVector.mult(100f);
-            //effectedParticle.Impulse(impVector);
-          }
-          else
-          {
-           effectedParticle.Attract(affectorParticle); 
-          }
+          PVector distanceTest = effectedParticle.RepelVector(new PVector(effectedParticle.Position.x, owner.Owner.ScreenSize.y/2, 0)); //new PVector (effectedParticle.Position.x, effectedParticle.Position.y, effectedParticle.Position.z);
+
         }
-        
-        /*PVector testing = new PVector(1000, 1000, 1000); // effectedParticle.Position
-        testing.sub(owner.Position);
-        if (testing.mag() > owner.Position.mag() )
+
+        if(effectorPos.x > Koda.IntendedScreenSize.x + 50 || effectorPos.y > Koda.IntendedScreenSize.y + 50 || effectorPos.x < -50 || effectorPos.y < -50)
         {
-            effectedParticle.Approach(owner.Position);
-        }*/
-      }
-      //System.out.println(effectedParticle.id);
-      //effectedParticle.Attract(new PVector (300,200,0));System.out.println("ha"+effectedParticle.Acceleration);
-      if(effectedParticle.Position.x > owner.Owner.ScreenSize.x + 50 || effectedParticle.Position.y > owner.Owner.ScreenSize.y + 50 || effectedParticle.Position.x < -50 || effectedParticle.Position.y < -50 || Float.isNaN(effectedParticle.Position.x) )
-      {
-        
-        effectedParticle.OffScreen = true;
-        effectedParticle.Active = false;
-        effectedParticle.reset();
-      }
-    }
-    /*if (particleSet == 0 && owner.particles.size() == 1)
-    {
-      Particle effectedParticle = owner.particles.get(0);
-       if(effectedParticle.Position.x > owner.Owner.ScreenSize.x || effectedParticle.Position.y > owner.Owner.ScreenSize.y || effectedParticle.Position.x < 0 || effectedParticle.Position.y < 0 || Float.isNaN(effectedParticle.Position.x) )
-      {
-          
           effectedParticle.OffScreen = true;
           effectedParticle.Active = false;
           effectedParticle.reset();
-      } 
-    }*/
-    
-    //System.out.println("On core: " + particleSet);
+        }
+        
+      }
+
+    }
+
   }
   
 }

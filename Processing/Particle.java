@@ -1,54 +1,95 @@
 import processing.core.PVector;
 import processing.core.PGraphicsJava2D;
+import java.util.Random;
 
 public class Particle
 {
-  private final PVector OrigionalStaticAcceleration = new PVector(0.4f, 0f, 0f);
-  private final float OrigionalDrag = 0.1f;
+  private final PVector OrigionalStaticAcceleration = new PVector(0.2f, 0f, 0f);//0.2
+  private final PVector OrigionalStaticVelocity = new PVector(1.4f, 0f, 0f); //1.4
+  private final float OrigionalDrag = 0.99f;
   
-  public PVector Position = new PVector(-1000f,-1000f,-1000f);
+  private ParticleTypes type = ParticleTypes.NULL;
+  
+  public PVector LastPosition = new PVector(-1000f, -1000f, -1000f);
+  public PVector Position = new PVector(LastPosition.x, LastPosition.y, LastPosition.z);
   public PVector Velocity = new PVector(0f,0f,0f);
+  public PVector EffectiveVelocity = new PVector(0f,0f,0f);
   public PVector LastVelocity = new PVector(0f,0f,0f);
+  public PVector LastAcc = new PVector(0f, 0f, 0f);
   public PVector Acceleration = new PVector(0f,0f,0f);
   public PVector StaticAcceleration = new PVector(OrigionalStaticAcceleration.x, OrigionalStaticAcceleration.y, OrigionalStaticAcceleration.z);
+  public PVector StaticVelocity = new PVector(OrigionalStaticVelocity.x, OrigionalStaticVelocity.y, OrigionalStaticVelocity.z);
   
   public float Drag = OrigionalDrag;
   
   private float approachMultiplier = 5f;
   private float repelMultiplier = 5f;
-  private float maxSpeed = 1000f;
-  private float timeScale = 1f;
+  private float linearRepelMultiplier = 5f;
+  private float maxSpeed = 300f;
+  private float minSpeed = 10f;
+  private float spacialScale = 1f;
+  private float timeScale = 999f; //Use absure number here to get erronious particles offscreen quickly... Yes, this is a bug.
+  private float scale = 1f;
+  private float opacity = 255f;
+  
+  private static float largeRand = 10f;
+  private static float smallRand = 0.25f;
   
   public boolean OffScreen;
   public boolean Active = false;
   
-  private ParticleTypes type = ParticleTypes.NULL;
+  public float lastCallTime = 0.0f;
+  
+  public Random randomGen = new Random();
   
   public int id;
   
   //Getters
+  public float GetScale()
+  {
+    return scale;
+  }
+  
   public ParticleTypes GetType()
   {
     return type;
   }
   
-  /*
-  public PVector getPosition()
+  public PVector GetPosition()
   {
     return Position;
   }
-  
-  public PVector getVelocity()
+
+  public PVector GetVelocity()
   {
     return Velocity;
   }
-  
-  public PVector getAcceleration()
+
+  public PVector GetStaticVelocity()
+  {
+    return StaticVelocity;
+  }
+
+  public PVector GetAcceleration()
   {
     return Acceleration;
   }
-  */
-  //Setters
+  
+  public float GetOpacity()
+  {
+    return opacity;
+  }
+  
+  //Setters spacialScale
+  public void SetSpacialScale(float value)
+  {
+    spacialScale = value;
+  }
+  public void SetScale(float value)
+  {
+    scale = value;
+  }
+  
   public void setTimeScale(float value)
   {
     timeScale = value;
@@ -60,6 +101,15 @@ public class Particle
     {
     case ChordProgression: 
       setType(ParticleTypes.ChordProgression);
+      break;
+    case ChordProgressionThree: 
+      setType(ParticleTypes.ChordProgressionThree);
+      break;
+    case ChordProgressionFour: 
+      setType(ParticleTypes.ChordProgressionFour);
+      break;
+    case ChordProgressionFive: 
+      setType(ParticleTypes.ChordProgressionFive);
       break;
     case Melody: 
       setType(ParticleTypes.Melody);
@@ -83,13 +133,24 @@ public class Particle
   {
     type = newType;
   }
-  /*
-  public PVector setPosition()
+  
+  public void SetRelPosition(PVector npv)
   {
-    return Position;
+    SetRelPosition(npv.x, npv.y, npv.z);
   }
   
-  public PVector setVelocity()
+  public void SetRelPosition(float nx, float ny, float nz)
+  {
+    Position.add(new PVector (nx, ny, nz));
+  }
+  
+  public void SetOpacity(float value)
+  {
+    if (value < 0) value = 0;
+    opacity = value;
+  }
+  
+  /*public PVector setVelocity()
   {
     return Velocity;
   }
@@ -106,119 +167,241 @@ public class Particle
   
   public Particle()
   {
-    System.out.println("Particle " + id + " ready.");
+    //System.out.println("Particle " + id + " ready.");
   }
   
   public Particle(int myID)
   {
     id = myID;
-    System.out.println("Particle " + id + " ready.");
+    //System.out.println("Particle " + id + " ready.");
   }
   
   public void Particle(ParticleTypes myType)
   {
     type = myType;
-    System.out.println("Particle " + id + " ready.");
+    //System.out.println("Particle " + id + " ready.");
   }
   
   public void Particle(int myID, ParticleTypes myType)
   {
     id = myID;
     type = myType;
-    System.out.println("Particle " + id + " ready.");
+    //System.out.println("Particle " + id + " ready.");
   }
   
   public void Simulate()
   {
+    //System.out.println("id: "+id+", "+timeScale+", last comm: "+lastCallTime + ", time: "+Koda.getCurrentTime()+", Active: "+Active);
     float newVelMag = 0;
-     //System.out.println(id + "pre Acc = " + Acceleration + ", Vel = " + Velocity + ", " + Active);
-    Velocity = new PVector (LastVelocity.x, LastVelocity.y, LastVelocity.z);
-    //System.out.println( "Pre Acc = " + Acceleration + ", Vel = " + Velocity);
-    Velocity.add(new PVector (Acceleration.x, Acceleration.y, Acceleration.z));
-     
-    newVelMag = Velocity.mag() - Drag;
-     
-    if (newVelMag < 0)
-      Velocity.setMag(0);
-    else
-     Velocity.setMag(Velocity.mag() - Drag);
-      
-      if (id == 0)
-    //System.out.println(id + " Acc = " + Acceleration + ", Vel = " + Velocity + ", " + Active);
     
-    if (Velocity.mag() > maxSpeed)
+    LastVelocity = new PVector (Velocity.x , Velocity.y , Velocity.z);
+    if(Float.isNaN(LastVelocity.x) || Float.isNaN(LastVelocity.y) || Float.isNaN(LastVelocity.z))
+    {
+      System.out.println("Corrupt LV on particle: " + id );
+      LastVelocity = new PVector (randomGen.nextFloat() * largeRand - largeRand / 2, randomGen.nextFloat() * largeRand - largeRand / 2, 0);
+    }
+    if(Float.isNaN(Velocity.x) || Float.isNaN(Velocity.y) || Float.isNaN(Velocity.z))
+    {
+      System.out.println("(Stage 1)Corrupt V on particle: " + id );
+      Velocity = new PVector (LastVelocity.x + randomGen.nextFloat() * smallRand - smallRand / 2, LastVelocity.y + randomGen.nextFloat() * smallRand - smallRand / 2, 0);
+    }
+    if(Float.isNaN(Acceleration.x) || Float.isNaN(Acceleration.y) || Float.isNaN(Acceleration.z))
+    {
+      System.out.println("Corrupt A on particle: " + id + ", " + LastAcc + ", " + Acceleration);
+      Acceleration = new PVector (0, 0, 0);
+    }
+    if(Float.isNaN(LastPosition.x) || Float.isNaN(LastPosition.y) || Float.isNaN(LastPosition.z))
+    {
+      LastPosition = new PVector(-1000f, -1000f, -1000f);
+      System.out.println("Corrupt LP on particle: " + id );
+    }
+    if(Float.isNaN(Position.x) || Float.isNaN(Position.y) || Float.isNaN(Position.z))
+    {
+      Position = new PVector(LastPosition.x, LastPosition.y, LastPosition.z);
+      System.out.println("Corrupt Pos on particle: " + id );
+    }
+    
+    Velocity = new PVector (LastVelocity.x, LastVelocity.y + randomGen.nextFloat() * largeRand - largeRand / 2, LastVelocity.z);
+
+    Velocity.add(new PVector (Acceleration.x, Acceleration.y, Acceleration.z));
+  
+    newVelMag = this.Velocity.mag();
+    
+    if (newVelMag != 0)
+    {
+      Velocity.setMag(newVelMag * Drag);
+    }
+    newVelMag = Velocity.mag();
+    if (newVelMag > maxSpeed)
+    {
       Velocity.setMag(maxSpeed);
-      
-    LastVelocity = new PVector (Velocity.x, Velocity.y, Velocity.z);
-    Velocity.mult(timeScale);
-    Position.add( new PVector (Velocity.x, Velocity.y, Velocity.z));
-    //System.out.println( "Particle " + id + " is at " + Position);
-    //System.out.println( "Acc = " + Acceleration + ", Vel = " + Velocity);
-    //System.out.println( "Time Scale = " + timeScale);
-    //display();
-    //Velocity = new PVector(0f, 0f, 0f);
+    } 
+    else if (newVelMag < minSpeed)
+    {
+      Velocity.setMag(minSpeed);
+    } 
+
+    EffectiveVelocity = new PVector (Velocity.x, Velocity.y, Velocity.z);
+    EffectiveVelocity.mult(timeScale);
+
+    Position.add( new PVector ((EffectiveVelocity.x + StaticVelocity.x), (EffectiveVelocity.y + StaticVelocity.y), EffectiveVelocity.z + StaticVelocity.z));
+
     Acceleration = new PVector(StaticAcceleration.x, StaticAcceleration.y, StaticAcceleration.z);
-    //System.out.println(id + "post Acc = " + Acceleration + ", Vel = " + Velocity + ", " + Active);
+    LastPosition = new PVector (Position.x, Position.y, Position.z);
+    LastAcc = new PVector (Acceleration.x , Acceleration.y , Acceleration.z);
   }
   
   public void Approach(Particle target)
   {
+
     Approach(target.Position);
   }
-  
+
   public void Approach(PVector target)
   {
+
     target.sub(Position);
     target.mult(approachMultiplier);
+
     Acceleration.add(target);
   }
-  
+
   public void Attract(Particle target)
   {
+    if (Float.isNaN(target.Position.x) || target.Position.x == Float.POSITIVE_INFINITY || target.Position.x == Float.NEGATIVE_INFINITY) System.out.println("target == broken " + target);
     Attract(target.Position);
   }
-  
+
   public void Attract(PVector itarget)
   {
-    //System.out.println( "Acc = " + Acceleration + ", Vel = " + Velocity);target
-    //System.out.println( "Targ = " + target);
-    PVector target = new PVector (itarget.x, itarget.y, itarget.z);
-    target.sub(Position);
-    //System.out.println( "Targ op1 = " + target);
-    target.setMag(1/target.mag());
-    //System.out.println( "Targ op2 = " + target);
-    target.mult(approachMultiplier);
-    
-    //System.out.println( "Targ op3 = " + target);
-    Acceleration.add(target);
+    if (itarget != null && !Float.isNaN(itarget.x))
+    {
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      if (Float.isNaN(target.x) || target.x == Float.POSITIVE_INFINITY || target.x == Float.NEGATIVE_INFINITY) System.out.println("target pv == broken " + target);
+      target.sub(Position);
+      float targmag = target.mag();
+      if (targmag != 0)
+      {
+        target.setMag(1/targmag);
+        if (Float.isNaN(target.x) || target.x == Float.POSITIVE_INFINITY || target.x == Float.NEGATIVE_INFINITY) System.out.println("target pv == broken now " + target);
+        target.mult(approachMultiplier);
+        Acceleration.add(target);
+        //System.out.println(id + " targ: " + target);
+      }
+    }
   }
-  
+
   public void Repel(Particle target)
   {
     Repel(target.Position);
   }
-  
+ 
+  public void Repel(Particle target, float multiplier)
+  {
+    if (target != null)
+    {
+      Repel(target.Position, multiplier);
+    }
+  }
+
   public void Repel(PVector itarget)
   {
-    PVector target = new PVector (itarget.x, itarget.y, itarget.z);
-    target.add(Position);
-    target.mult(repelMultiplier);
-    target.div(target.mag());
-    Acceleration.add(target);
+    if (itarget != null)
+    {
+      PVector pos = new PVector (Position.x, Position.y, Position.z);
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      pos.sub(target);
+      pos.mult(repelMultiplier);
+      float posmag = pos.mag();
+        if (posmag != 0)
+        {
+          pos.setMag(1/posmag); //|| target.x == Float.POSITIVE_INFINITY || target.x == Float.NEGATIVE_INFINITY
+          
+        }
+        //System.out.println("PsvVex: " + pos);
+      Acceleration.add(pos);
+    }
   }
-  
+
+  public void Repel(PVector itarget, float multiplier)
+  {
+    if (itarget != null)
+    {
+      PVector pos = new PVector (Position.x, Position.y, Position.z);
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      pos.sub(target);
+      pos.mult(multiplier);
+      float posmag = pos.mag();
+        if (posmag != 0)
+        {
+          pos.setMag(1/posmag);
+        }
+      Acceleration.add(pos);
+    }
+  }
+
+  public void LinearRepel(Particle target)
+  {
+    if (target != null)
+    {
+      LinearRepel(target.Position);
+    }
+  }
+
+  public void LinearRepel(PVector itarget)
+  {
+    if (itarget != null)
+    {
+      PVector pos = new PVector (Position.x, Position.y, Position.z);
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      pos.sub(target);
+      pos.mult(linearRepelMultiplier);
+      pos.div(pos.mag());
+      Acceleration.add(pos);
+    }
+  }
+
   public PVector RepelVector(Particle target)
   {
     return RepelVector(target.Position);
   }
-  
+
   public PVector RepelVector(PVector itarget)
   {
-    PVector target = new PVector (itarget.x, itarget.y, itarget.z);
-    target.add(Position);
-    target.mult(repelMultiplier);
-    target.div(target.mag());
-    return target;
+    if (itarget != null)
+    {
+      PVector pos = new PVector (Position.x, Position.y, Position.z);
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      pos.sub(target);
+      pos.mult(repelMultiplier);
+      float posmag = pos.mag();
+        if (posmag != 0 )//&& !Float.isNaN(posmag)
+        {
+          pos.setMag(1);
+        }
+      return pos;
+    }
+    else
+      return new PVector (randomGen.nextFloat() * largeRand - largeRand / 2, randomGen.nextFloat() * largeRand - largeRand / 2, 0);
+  }
+
+  public PVector ApproachVector(Particle target)
+  {
+    return ApproachVector(target.Position);
+  }
+
+  public PVector ApproachVector(PVector itarget)
+  {
+    if (itarget != null)
+    {
+      PVector target = new PVector (itarget.x, itarget.y, itarget.z);
+      target.sub(Position);
+      target.mult(repelMultiplier);
+      target.div(target.mag());
+      return target;
+    }
+    else
+      return new PVector (randomGen.nextFloat() * largeRand - largeRand / 2, randomGen.nextFloat() * largeRand - largeRand / 2, 0);
   }
   
   public void AddForce(PVector newForce)
@@ -245,64 +428,30 @@ public class Particle
   {
    Impulse(new PVector(nx, ny, 0));
   }
-  
-  public void LoopAcross()
-  {
-    //Position = new PVector(0f, 0f, 0f);
-  }
-  
+
   public void reset()
   {
+    LastPosition = new PVector(-1000f,-1000f,-1000f);
     Position = new PVector(-1000f,-1000f,-1000f);
     Velocity = new PVector(0f,0f,0f);
     Acceleration = new PVector(0f,0f,0f);
     LastVelocity = new PVector(0f,0f,0f);
     StaticAcceleration = new PVector(OrigionalStaticAcceleration.x, OrigionalStaticAcceleration.y, OrigionalStaticAcceleration.z);
+    StaticVelocity  = new PVector(OrigionalStaticVelocity.x, OrigionalStaticVelocity.y, OrigionalStaticVelocity.z);
     Active = false;
   }
   
   public void init()
   {
+    LastPosition = new PVector(-1000f,-1000f,-1000f);
     Position = new PVector(-1000f,-1000f,-1000f);
     Velocity = new PVector(0f,0f,0f);
     Acceleration = new PVector(0f,0f,0f);
     LastVelocity = new PVector(0f,0f,0f);
     StaticAcceleration = new PVector(OrigionalStaticAcceleration.x, OrigionalStaticAcceleration.y, OrigionalStaticAcceleration.z);
+    StaticVelocity  = new PVector(OrigionalStaticVelocity.x, OrigionalStaticVelocity.y, OrigionalStaticVelocity.z);
+    Drag = OrigionalDrag;
     Active = true;
-  }
-  
-  void display()
-  {
-    
-    /*switch(ParticleTypes.getType(type.toString())) 
-    {
-    case ChordProgression: 
-      System.out.println("Testing:");
-      break;
-    case Melody: 
-      System.out.println("Melody recieved");
-      break;
-    case Dynamics: 
-      System.out.println("Dynamics revieved"); 
-      break;
-    case Rhythm: 
-      System.out.println("Rhythm revieved"); 
-      break;
-    case NULL: 
-      int r = 10; //temp
-      PGraphicsJava2D.stroke(0);
-      fill(0,100);
-      ellipse(pos.x,pos.y ,r,r);
-      break;
-    default:
-      System.out.println("Unknown particle type: " + type);
-      break;
-    }*/
-    //Position.mult(3.1f);
-    /*float r = 1f;
-    stroke(0);
-    fill(0,100);
-    ellipse(x,y,r,r);*/
   }
   
 }
